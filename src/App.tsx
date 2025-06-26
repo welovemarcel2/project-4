@@ -14,6 +14,7 @@ import { Header } from './components/layout/Header';
 import { useCurrencyStore } from './stores/currencyStore';
 import { useTemplatesStore } from './stores/templatesStore';
 import { DashboardOverview } from './components/dashboard/DashboardOverview';
+import { TestPage } from './components/TestPage';
 
 export default function App() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -23,6 +24,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showTestPage, setShowTestPage] = useState(false);
 
   try {
     const { currentUser, loadUserData } = useUserStore(state => ({
@@ -215,6 +217,11 @@ export default function App() {
       setShowDashboard(false);
     };
 
+    // Toggle test page
+    const toggleTestPage = () => {
+      setShowTestPage(!showTestPage);
+    };
+
     if (error) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -251,11 +258,39 @@ export default function App() {
       );
     }
 
+    if (showTestPage) {
+      return (
+        <div className="min-h-screen bg-gray-50">
+          <Header title="Test de connexion Supabase" />
+          <div className="py-4">
+            <div className="max-w-7xl mx-auto px-4 flex justify-end mb-4">
+              <button
+                onClick={toggleTestPage}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Retour à l'application
+              </button>
+            </div>
+            <TestPage />
+          </div>
+        </div>
+      );
+    }
+
     const accessibleProjects = projectStore.getAccessibleProjects();
 
     return (
       <div className="min-h-screen bg-gray-50">
         <Header title={selectedProject ? selectedProject.name : "Budget Production Audiovisuelle"} />
+        
+        <div className="max-w-7xl mx-auto px-4 py-2 flex justify-end">
+          <button
+            onClick={toggleTestPage}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Tester la connexion Supabase
+          </button>
+        </div>
         
         {selectedProject ? (
           <div className="py-4">
