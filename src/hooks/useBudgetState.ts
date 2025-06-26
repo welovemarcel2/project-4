@@ -26,7 +26,7 @@ interface BudgetState {
   isWorkBudgetActive: (quoteId: string) => boolean;
   updateBudget: (quoteId: string, newBudget: BudgetCategory[] | null | undefined, isWorkBudget?: boolean) => void;
   addItem: (quoteId: string, categoryId: string | null, parentId: string | null, type: BudgetItemType, settings: QuoteSettings, isWorkBudget?: boolean) => void;
-  updateItem: (quoteId: string, categoryId: string, itemId: string, updates: Partial<BudgetLine>, isWorkBudget?: boolean) => void;
+  updateItem: (quoteId: string, categoryId: string, itemId: string, updates: Partial<BudgetLine>, saveToBackend?: boolean) => Promise<void>;
   deleteItem: (quoteId: string, categoryId: string, itemId: string, isWorkBudget?: boolean) => void;
   updateCategory: (quoteId: string, categoryId: string, updates: Partial<BudgetCategory>, isWorkBudget?: boolean) => void;
   initializeWorkBudget: (quoteId: string) => void;
@@ -350,14 +350,17 @@ export const useBudgetStore = create<BudgetState>()(
               }
             }));
           }
+
+          // Save to Supabase immediately
+          get().updateBudget(quoteId, updatedBudget, isWorkBudget);
         } catch (error) {
           console.error('Error adding item:', error);
           throw error;
         }
       },
 
-      updateItem: async (quoteId, categoryId, itemId, updates, isWorkBudget = false) => {
-        console.log('Updating item in', isWorkBudget ? 'work budget' : 'regular budget', 'for quote:', quoteId);
+      updateItem: async (quoteId, categoryId, itemId, updates, saveToBackend = true) => {
+        console.log('Updating item for quote:', quoteId, 'category:', categoryId, 'item:', itemId);
         console.log('Updates:', updates);
         
         const state = get();
@@ -369,6 +372,8 @@ export const useBudgetStore = create<BudgetState>()(
           lastSaved: new Date()
         }));
 
+        // Determine if we're working with the work budget
+        const isWorkBudget = state.budgets[quoteId]?.isWorkBudgetActive || false;
         const currentBudget = isWorkBudget ? budgetData.workBudget : budgetData.budget;
         const safeCurrentBudget = Array.isArray(currentBudget) ? currentBudget : [];
 
@@ -434,6 +439,11 @@ export const useBudgetStore = create<BudgetState>()(
                 }
               }
             }));
+          }
+
+          // Save to Supabase if requested
+          if (saveToBackend) {
+            await get().updateBudget(quoteId, updatedBudget, isWorkBudget);
           }
         } catch (error) {
           console.error('Error updating item:', error);
@@ -503,6 +513,9 @@ export const useBudgetStore = create<BudgetState>()(
             }
           }));
         }
+
+        // Save to Supabase immediately
+        get().updateBudget(quoteId, updatedBudget, isWorkBudget);
       },
 
       updateCategory: (quoteId, categoryId, updates, isWorkBudget = false) => {
@@ -546,6 +559,9 @@ export const useBudgetStore = create<BudgetState>()(
             }
           }));
         }
+
+        // Save to Supabase immediately
+        get().updateBudget(quoteId, updatedBudget, isWorkBudget);
       },
 
       initializeWorkBudget: (quoteId) => {
@@ -591,6 +607,9 @@ export const useBudgetStore = create<BudgetState>()(
             }
           }
         }));
+
+        // Save to Supabase immediately
+        get().updateBudget(quoteId, cleanedBudget, true);
       },
 
       resetWorkBudget: (quoteId) => {
@@ -720,6 +739,9 @@ export const useBudgetStore = create<BudgetState>()(
           }
         }));
         console.log('State updated, new workBudget:', get().budgets[quoteId]?.workBudget);
+
+        // Save to Supabase immediately
+        get().updateBudget(quoteId, updatedBudget, true);
       },
 
       updateWorkItem: (quoteId, categoryId, itemId, updates) => {
@@ -756,6 +778,9 @@ export const useBudgetStore = create<BudgetState>()(
             }
           }
         }));
+
+        // Save to Supabase immediately
+        get().updateBudget(quoteId, updatedBudget, true);
       },
 
       deleteWorkItem: (quoteId, categoryId, itemId) => {
@@ -795,6 +820,9 @@ export const useBudgetStore = create<BudgetState>()(
             }
           }
         }));
+
+        // Save to Supabase immediately
+        get().updateBudget(quoteId, updatedBudget, true);
       },
 
       updateWorkCategory: (quoteId, categoryId, updates) => {
@@ -819,6 +847,9 @@ export const useBudgetStore = create<BudgetState>()(
             }
           }
         }));
+
+        // Save to Supabase immediately
+        get().updateBudget(quoteId, updatedBudget, true);
       }
     }),
     {

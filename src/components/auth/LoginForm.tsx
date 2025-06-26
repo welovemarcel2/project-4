@@ -5,7 +5,6 @@ import { Building2, User, LogIn, AlertTriangle, Eye, EyeOff } from 'lucide-react
 import { Logo } from '../layout/Logo';
 import { resetAllStores } from '../../utils/resetStores';
 import { ForgotPasswordModal } from './ForgotPasswordModal';
-import { cleanupAuthUsers } from '../../utils/cleanupAuth';
 import { checkDatabaseState } from '../../utils/checkDatabaseState';
 
 interface LoginFormProps {
@@ -64,9 +63,6 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
     setIsLoading(true);
 
     try {
-      // Clean up existing users first
-      await cleanupAuthUsers();
-
       if (isLogin) {
         const result = await loginUser(email, password);
         if (result.success) {

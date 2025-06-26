@@ -1,1 +1,0 @@
-export { initialBudget } from './budget';

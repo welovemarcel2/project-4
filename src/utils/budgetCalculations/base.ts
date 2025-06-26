@@ -124,30 +124,18 @@ export function calculateLineTotalWithCurrency(
     const number = line.number || 0;
     const rate = useWorkCost && line.cost !== undefined ? line.cost : line.rate;
     
-    console.log('=== CALCULATE LINE TOTAL WITH CURRENCY ===');
-    console.log('Line:', line.name);
-    console.log('Rate:', rate);
-    console.log('Line currency:', line.currency);
-    console.log('Selected currency:', selectedCurrency);
-    console.log('Quantity:', quantity);
-    console.log('Number:', number);
-    
     if (line.currency && line.currency !== selectedCurrency) {
       // Convertir le tarif vers la devise sélectionnée
       const convertedRate = convertAmount(rate, line.currency, selectedCurrency);
       baseTotal = quantity * number * convertedRate;
-      console.log('Converted rate:', convertedRate);
-      console.log('Base total with conversion:', baseTotal);
     } else {
       // Utiliser le tarif tel quel si même devise
       baseTotal = quantity * number * (rate || 0);
-      console.log('No conversion needed, base total:', baseTotal);
     }
     
     // Ajouter les heures supplémentaires
     const overtimeAmount = line.overtime || 0;
     baseTotal += overtimeAmount;
-    console.log('Final total with overtime:', baseTotal);
   }
 
   let total = baseTotal;

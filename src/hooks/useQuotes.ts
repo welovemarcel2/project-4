@@ -404,6 +404,8 @@ export const useQuoteStore = create<QuoteState>()(
 
       updateQuoteBudget: async (quoteId, budget) => {
         try {
+          console.log('Updating budget for quote:', quoteId);
+          
           // Extract comments from budget items for separate storage
           const comments: Record<string, string> = {};
           const extractComments = (items: BudgetLine[]) => {
@@ -431,7 +433,12 @@ export const useQuoteStore = create<QuoteState>()(
               onConflict: 'quote_id'
             });
 
-          if (error) throw error;
+          if (error) {
+            console.error('Error updating budget in Supabase:', error);
+            throw error;
+          }
+
+          console.log('Budget updated successfully in Supabase');
 
           const currentState = get();
           const quoteData = currentState.quotesData[quoteId];
