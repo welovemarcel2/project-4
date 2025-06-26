@@ -1,0 +1,160 @@
+/*
+  # Budget Items Schema
+
+  1. New Tables
+    - `budget_items`
+      - `id` (uuid, primary key)
+      - `quote_id` (uuid, foreign key)
+      - `category_id` (uuid)
+      - `parent_id` (uuid)
+      - `type` (text)
+      - `name` (text)
+      - `quantity` (numeric)
+      - `number` (numeric)
+      - `unit` (text)
+      - `rate` (numeric)
+      - `social_charges` (text)
+      - `agency_percent` (numeric)
+      - `margin_percent` (numeric)
+      - `is_expanded` (boolean)
+      - `created_at` (timestamp)
+      - `updated_at` (timestamp)
+
+  2. Security
+    - Enable RLS
+    - Add policies for authenticated users
+    - Maintain proper access control
+*/
+
+-- Create budget_items table
+CREATE TABLE budget_items (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  quote_id UUID NOT NULL REFERENCES quotes(id) ON DELETE CASCADE,
+  category_id UUID,
+  parent_id UUID REFERENCES budget_items(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('category', 'subCategory', 'post', 'subPost')),
+  name TEXT NOT NULL,
+  quantity NUMERIC DEFAULT 0,
+  number NUMERIC DEFAULT 0,
+  unit TEXT NOT NULL,
+  rate NUMERIC DEFAULT 0,
+  social_charges TEXT,
+  agency_percent NUMERIC DEFAULT 10,
+  margin_percent NUMERIC DEFAULT 15,
+  is_expanded BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE budget_items ENABLE ROW LEVEL SECURITY;
+
+-- Create RLS policies
+CREATE POLICY "budget_items_read_policy"
+ON budget_items
+FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM quotes
+    WHERE quotes.id = quote_id
+    AND EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = quotes.project_id
+      AND (
+        projects.owner_id = auth.uid()
+        OR EXISTS (
+          SELECT 1 FROM project_shares
+          WHERE project_shares.project_id = projects.id
+          AND project_shares.user_id = auth.uid()
+        )
+      )
+    )
+  )
+);
+
+CREATE POLICY "budget_items_write_policy"
+ON budget_items
+FOR INSERT
+TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM quotes
+    WHERE quotes.id = quote_id
+    AND EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = quotes.project_id
+      AND (
+        projects.owner_id = auth.uid()
+        OR EXISTS (
+          SELECT 1 FROM project_shares
+          WHERE project_shares.project_id = projects.id
+          AND project_shares.user_id = auth.uid()
+          AND project_shares.can_edit = true
+        )
+      )
+    )
+  )
+);
+
+CREATE POLICY "budget_items_update_policy"
+ON budget_items
+FOR UPDATE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM quotes
+    WHERE quotes.id = quote_id
+    AND EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = quotes.project_id
+      AND (
+        projects.owner_id = auth.uid()
+        OR EXISTS (
+          SELECT 1 FROM project_shares
+          WHERE project_shares.project_id = projects.id
+          AND project_shares.user_id = auth.uid()
+          AND project_shares.can_edit = true
+        )
+      )
+    )
+  )
+);
+
+CREATE POLICY "budget_items_delete_policy"
+ON budget_items
+FOR DELETE
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM quotes
+    WHERE quotes.id = quote_id
+    AND EXISTS (
+      SELECT 1 FROM projects
+      WHERE projects.id = quotes.project_id
+      AND (
+        projects.owner_id = auth.uid()
+        OR EXISTS (
+          SELECT 1 FROM project_shares
+          WHERE project_shares.project_id = projects.id
+          AND project_shares.user_id = auth.uid()
+          AND project_shares.can_edit = true
+        )
+      )
+    )
+  )
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_budget_items_quote_id ON budget_items(quote_id);
+CREATE INDEX idx_budget_items_category_id ON budget_items(category_id);
+CREATE INDEX idx_budget_items_parent_id ON budget_items(parent_id);
+
+-- Create updated_at trigger
+CREATE TRIGGER update_budget_items_updated_at
+  BEFORE UPDATE ON budget_items
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- Grant necessary permissions
+GRANT ALL ON budget_items TO authenticated;
