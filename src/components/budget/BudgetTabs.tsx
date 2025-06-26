@@ -43,15 +43,15 @@ interface BudgetTabsProps {
   activeTab?: TabId;
   onTabChange?: (tab: TabId) => void;
   onUpdateBudget: (budget: BudgetCategory[]) => void;
-  onAddItem: (categoryId: string | null, parentId: string | null, type: BudgetItemType) => void;
-  onUpdateItem: (categoryId: string, itemId: string, updates: Partial<BudgetLine>, saveToBackend?: boolean) => void;
-  onDeleteItem: (categoryId: string, itemId: string) => void;
-  onUpdateCategory: (categoryId: string, updates: Partial<BudgetCategory>) => void;
+  onAddItem: (categoryId: string | null, parentId: string | null, type: BudgetItemType) => Promise<void>;
+  onUpdateItem: (categoryId: string, itemId: string, updates: Partial<BudgetLine>, saveToBackend?: boolean) => Promise<void>;
+  onDeleteItem: (categoryId: string, itemId: string) => Promise<void>;
+  onUpdateCategory: (categoryId: string, updates: Partial<BudgetCategory>) => Promise<void>;
   onUpdateSettings: (settings: Partial<QuoteSettings>) => void;
   onUpdateNotes: (notes: string) => void;
   onActivateWorkBudget?: () => void;
   onResetWorkBudget?: () => void;
-  onSaveChanges?: () => void;
+  onSaveChanges?: () => Promise<void>;
   isDirty?: boolean;
   quoteId: string;
   additiveQuotes: Quote[];
@@ -96,6 +96,7 @@ export function BudgetTabs({
   // Update settings when the component mounts or when the quote display settings change
   useEffect(() => {
     if (selectedQuote.displays) {
+      console.log(`[BudgetTabs] Applying quote display settings for quote ${selectedQuote.id}`);
       // Apply the quote-specific display settings
       onUpdateSettings({
         showEmptyItems: selectedQuote.displays.showEmptyItems,
@@ -106,7 +107,10 @@ export function BudgetTabs({
   }, [selectedQuote.displays]);
   
   const handleTabChange = (tab: TabId) => {
+    console.log(`[BudgetTabs] Changing tab to ${tab}`);
+    
     if (tab === 'work' && onActivateWorkBudget) {
+      console.log('[BudgetTabs] Activating work budget');
       onActivateWorkBudget();
     }
     
@@ -119,6 +123,7 @@ export function BudgetTabs({
 
   const handleResetWorkBudget = () => {
     if (onResetWorkBudget) {
+      console.log('[BudgetTabs] Resetting work budget');
       onResetWorkBudget();
       setShowResetConfirm(false);
       handleTabChange('budget');
@@ -127,6 +132,7 @@ export function BudgetTabs({
   };
 
   const handleForceEdit = () => {
+    console.log('[BudgetTabs] Force editing enabled');
     setIsForceEditing(true);
   };
 
@@ -148,12 +154,19 @@ export function BudgetTabs({
 
   // Sauvegarder automatiquement les changements lors du changement d'onglet
   const handleSaveBeforeTabChange = (tab: TabId) => {
-    if (onSaveChanges && isDirty) {      
+    console.log(`[BudgetTabs] Preparing to change tab to ${tab}, isDirty=${isDirty}`);
+    
+    if (onSaveChanges && isDirty) {
+      console.log('[BudgetTabs] Saving changes before tab change');
       // Attendre que la sauvegarde soit terminée avant de changer d'onglet
       (async () => {
         try {
           await onSaveChanges();
-        } finally {
+          console.log('[BudgetTabs] Changes saved, now changing tab');
+          handleTabChange(tab);
+        } catch (error) {
+          console.error('[BudgetTabs] Error saving before tab change:', error);
+          // Changer quand même d'onglet en cas d'erreur
           handleTabChange(tab);
         }
       })();

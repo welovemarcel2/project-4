@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useUserStore } from '../../stores/userStore';
-import { Project, Quote, QuoteStatus } from '../../types/project';
+import { Project, Quote } from '../../types/project';
 import { QuoteSettings } from '../../types/quoteSettings';
 import { ShareProjectModal } from '../projects/ShareProjectModal';
 import { BudgetCategory } from '../../types/budget';
 import { usePermissions } from '../../hooks/usePermissions';
 import { ArrowLeft, Share2, Save } from 'lucide-react';
+import { SyncStatusIndicator } from '../budget/SyncStatusIndicator';
 
 interface ProjectHeaderProps {
   project: Project;
@@ -20,10 +21,10 @@ interface ProjectHeaderProps {
   onSelectQuote: (quote: Quote) => void;
   onCreateQuote: () => void;
   onShareProject?: (email: string, permissions: { canEdit: boolean; canShare: boolean }) => void;
-  onSaveChanges?: () => void;
+  onSaveChanges?: () => Promise<void>;
   isDirty?: boolean;
-  lastSavedAt?: Date;
-  onUpdateBudget: (budget: BudgetCategory[]) => void;
+  lastSavedAt?: Date | null;
+  onUpdateBudget: (budget: BudgetCategory[]) => Promise<void>;
 }
 
 export function ProjectHeader({
@@ -46,6 +47,44 @@ export function ProjectHeader({
 }: ProjectHeaderProps) {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const permissions = usePermissions();
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Fonction pour formater la date de dernière sauvegarde
+  const formatLastSavedDate = (date: Date | null) => {
+    if (!date) return 'Jamais sauvegardé';
+    
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    
+    // Si moins d'une minute
+    if (diff < 60000) {
+      return 'Il y a quelques secondes';
+    }
+    
+    // Si moins d'une heure
+    if (diff < 3600000) {
+      const minutes = Math.floor(diff / 60000);
+      return `Il y a ${minutes} minute${minutes > 1 ? 's' : ''}`;
+    }
+    
+    // Sinon afficher l'heure complète
+    return date.toLocaleTimeString();
+  };
+
+  // Gestion de la sauvegarde
+  const handleSave = async () => {
+    if (onSaveChanges) {
+      setIsSaving(true);
+      try {
+        await onSaveChanges();
+        console.log('[ProjectHeader] Changes saved successfully');
+      } catch (error) {
+        console.error('[ProjectHeader] Error saving changes:', error);
+      } finally {
+        setIsSaving(false);
+      }
+    }
+  };
 
   return (
     <div className="flex items-center justify-between px-4 py-3">
@@ -75,19 +114,31 @@ export function ProjectHeader({
       </div>
       
       <div className="flex items-center gap-3">
+        {/* Indicateur de synchronisation */}
+        {selectedQuote && (
+          <SyncStatusIndicator quoteId={selectedQuote.id} />
+        )}
 
+        {/* Dernière sauvegarde et bouton de sauvegarde */}
         <div className="flex items-center">
+          {lastSavedAt && (
+            <span className="text-xs text-gray-500 mr-2" title={lastSavedAt.toLocaleString()}>
+              {formatLastSavedDate(lastSavedAt)}
+            </span>
+          )}
+          
           {onSaveChanges && (
             <button
-              onClick={onSaveChanges}
+              onClick={handleSave}
+              disabled={isSaving || !isDirty}
               className={`flex items-center justify-center p-2 rounded-full transition-colors ${
                 isDirty
                   ? 'text-amber-600 hover:bg-amber-50'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  : 'text-gray-400 cursor-not-allowed'
               }`}
-              title={lastSavedAt ? `Dernière sauvegarde le ${new Date(lastSavedAt).toLocaleString()}` : undefined}
+              title={lastSavedAt ? `Dernière sauvegarde: ${lastSavedAt.toLocaleString()}` : 'Sauvegarder les modifications'}
             >
-              <Save size={18} />
+              <Save size={18} className={isSaving ? 'animate-pulse' : ''} />
             </button>
           )}
 

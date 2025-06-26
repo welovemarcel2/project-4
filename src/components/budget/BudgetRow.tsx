@@ -64,115 +64,6 @@ function normalizeString(str: string) {
   return (str || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 }
 
-// Nouvelle version robuste : calcule dynamiquement la base d'un poste %
-function getDynamicBaseForPercentage(
-  item: BudgetLine,
-  categories: BudgetCategory[],
-  settings: QuoteSettings,
-  convertAmount: (amount: number, fromCurrency?: CurrencyCode, toCurrency?: CurrencyCode) => number,
-  selectedCurrency: CurrencyCode
-): number {
-  if (!item.selectedCategories || item.selectedCategories.length === 0) return 0;
-
-  // Map pour retrouver rapidement une catégorie ou un post par ID
-  const categoryMap = new Map<string, BudgetCategory>();
-  const postMap = new Map<string, BudgetLine>();
-  function indexAll(categories: BudgetCategory[]) {
-    for (const cat of categories) {
-      categoryMap.set(cat.id, cat);
-      if (cat.items) {
-        for (const post of cat.items) {
-          postMap.set(post.id, post);
-          if (post.subItems && post.subItems.length > 0) {
-            indexPosts(post.subItems);
-          }
-        }
-      }
-    }
-  }
-  function indexPosts(posts: BudgetLine[]) {
-    for (const post of posts) {
-      postMap.set(post.id, post);
-      if (post.subItems && post.subItems.length > 0) {
-        indexPosts(post.subItems);
-      }
-    }
-  }
-  indexAll(categories);
-
-  // Pour éviter les doublons : si un parent est sélectionné, on ignore ses enfants
-  const selectedSet = new Set(item.selectedCategories);
-  const alreadyIncluded = new Set<string>();
-
-  // Helper pour savoir si un parent (catégorie ou sous-catégorie) est sélectionné
-  function isParentSelected(post: BudgetLine, parentChain: string[]): boolean {
-    return parentChain.some(parentId => selectedSet.has(parentId));
-  }
-
-  // Calcule le sous-total d'une catégorie (tous ses items, récursif)
-  function sumCategory(cat: BudgetCategory): number {
-    let total = 0;
-    if (cat.items) {
-      for (const post of cat.items) {
-        total += sumPost(post, [cat.id]);
-      }
-    }
-    return total;
-  }
-
-  // Calcule le sous-total d'une sous-catégorie (BudgetLine de type subCategory)
-  function sumSubCategory(subCat: BudgetLine, parentChain: string[]): number {
-    let total = 0;
-    if (subCat.subItems) {
-      for (const post of subCat.subItems) {
-        total += sumPost(post, [...parentChain, subCat.id]);
-      }
-    }
-    return total;
-  }
-
-  // Calcule le total d'un poste ou sous-poste (et ses sous-items, sauf si parent sélectionné)
-  function sumPost(post: BudgetLine, parentChain: string[]): number {
-    if (alreadyIncluded.has(post.id) || isParentSelected(post, parentChain)) return 0;
-    alreadyIncluded.add(post.id);
-    // Si c'est une sous-catégorie sélectionnée, on prend son sous-total
-    if (post.type === 'subCategory' && selectedSet.has(post.id)) {
-      return sumSubCategory(post, parentChain);
-    }
-    // Si c'est un poste ou sous-poste sélectionné, on prend uniquement ce poste
-    if ((post.type === 'post' || post.type === 'subPost') && selectedSet.has(post.id)) {
-      return calculateLineTotalWithCurrency(post, settings, convertAmount, selectedCurrency);
-    }
-    // Sinon, on descend dans les sous-items
-    let total = 0;
-    if (post.subItems && post.subItems.length > 0) {
-      for (const sub of post.subItems) {
-        total += sumPost(sub, [...parentChain, post.id]);
-      }
-    }
-    return total;
-  }
-
-  // Additionne la base dynamique sans doublons ni recoupement parent/enfant
-  let base = 0;
-  for (const id of item.selectedCategories) {
-    if (categoryMap.has(id)) {
-      // Catégorie sélectionnée : on prend son sous-total direct
-      base += sumCategory(categoryMap.get(id)!);
-    } else if (postMap.has(id)) {
-      const post = postMap.get(id)!;
-      if (post.type === 'subCategory') {
-        // Sous-catégorie sélectionnée : on prend son sous-total direct
-        base += sumSubCategory(post, []);
-      } else if (post.type === 'post' || post.type === 'subPost') {
-        // Poste ou sous-poste sélectionné : on prend uniquement ce poste
-        base += calculateLineTotalWithCurrency(post, settings, convertAmount, selectedCurrency);
-      }
-    }
-  }
-  return base;
-}
-
 // Ajout du composant RenderCounter pour debug
 function RenderCounter() {
   const renderCount = useRef(0);
@@ -215,6 +106,7 @@ export function BudgetRow({
   const { getCategories, showExpenseDistribution } = useExpenseCategoriesStore();
   const expenseCategories = getCategories(quoteId);
 
+  // États locaux
   const [showCategorySelector, setShowCategorySelector] = useState(false);
   const [isNameEditing, setIsNameEditing] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -238,6 +130,7 @@ export function BudgetRow({
 
   const [loupeClicked, setLoupeClicked] = useState(false);
 
+  // Clé de dépendance pour les calculs de base dynamique pour les postes %
   const debugKey = useMemo(() => {
     if (!item.selectedCategories) return '';
     return item.selectedCategories
@@ -270,14 +163,15 @@ export function BudgetRow({
       .join('|');
   }, [item.selectedCategories, categories]);
 
+  // Gestion de l'édition du nom
   useEffect(() => {
-    if (isNameEditing) {
-      requestAnimationFrame(() => {
-        nameInputRef.current?.select();
-      });
+    if (isNameEditing && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
     }
   }, [isNameEditing]);
 
+  // Handler pour le clic sur le taux (pour les postes %)
   const handleRateClick = () => {
     if (item.unit === '%') {
       setShowCategorySelector(true);
@@ -354,6 +248,7 @@ export function BudgetRow({
     ...(item.unit === '%' && item.selectedCategories ? [getBaseStructureKey(item.selectedCategories, categories)] : [])
   ]);
 
+  // Handlers pour les changements
   const handleCurrencyChange = (currencyCode: CurrencyCode, convertedRate?: number) => {
     // Si on revient à la devise par défaut, on supprime la devise spécifique
     if (currencyCode === selectedCurrency) {
@@ -373,7 +268,7 @@ export function BudgetRow({
       };
       onUpdate(updates);
     } else if (item.unit === '%') {
-      // Reset percentage-related fields when switching from %
+      // Réinitialiser les champs liés au pourcentage lors du changement de %
       onUpdate({
         unit: newUnit as BudgetUnit,
         selectedCategories: undefined,
@@ -393,6 +288,7 @@ export function BudgetRow({
     }
   };
 
+  // Styles pour différents types d'items
   const rowStyles = {
     category: "bg-blue-800 text-white font-bold",
     subCategory: "bg-blue-100 text-black font-bold",
@@ -402,6 +298,7 @@ export function BudgetRow({
 
   const isLocked = item.type === 'subCategory';
 
+  // Handler pour ajouter un sous-poste
   const handleAddSubPost = () => {
     const newSubItem: BudgetLine = {
       id: crypto.randomUUID(),
@@ -455,7 +352,7 @@ export function BudgetRow({
           )}
         </td>
 
-        <td className="px-1 py-0.5 sticky left-0" style={{ paddingLeft: `${contentIndentation}px` }}>
+        <td className="px-1 py-0.5 sticky left-0 bg-white" style={{ paddingLeft: `${contentIndentation}px` }}>
           <div className="flex items-center gap-1">
             <DeleteButton type={item.type} onClick={onDelete} disabled={disabled} />
             {item.type === 'post' && (
@@ -533,10 +430,6 @@ export function BudgetRow({
                                 const pricingBaseMatch = (r: any) => normalizeString(r['Pricing Base']) === pricingBaseNorm;
                                 tarifVariants = allRows.filter(r => nameFrMatch(r) && nameEnMatch(r) && pricingBaseMatch(r));
                                 availableUnits = Array.from(new Set(tarifVariants.map(r => r['Unit'])));
-                                // Log détaillé pour debug
-                                if (nameFrNorm.includes('assistant decorateur') && pricingBaseNorm === 'uspa') {
-                                  console.log('DEBUG UNITS - 1er assistant décorateur USPA', { allRows: allRows.filter(r => nameFrMatch(r) && nameEnMatch(r)), tarifVariants, availableUnits });
-                                }
                               } else if (poste._variants) {
                                 tarifVariants = poste._variants.filter((v: any) => v['Pricing Base'] === poste['Pricing Base']);
                                 availableUnits = Array.from(new Set(poste._variants.filter((v: any) => v['Pricing Base'] === poste['Pricing Base']).map((v: any) => v['Unit'])));
@@ -557,7 +450,6 @@ export function BudgetRow({
                                 unit,
                                 ...(baseHours ? { baseHours: baseHours } : {}),
                               });
-                              console.log('UNITS DEBUG', { nameFr, nameEn, pricingBase: poste['Pricing Base'], availableUnits, tarifVariants });
                               setIsNameEditing(false);
                             }
                           });
@@ -679,20 +571,24 @@ export function BudgetRow({
               className="w-16 text-center bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-0.5 text-[11px]"
               disabled={fieldsDisabled}
               tabIndex={baseTabIndex + 3}
-             onKeyDown={(e) => {
-               if (e.key === 'Enter') {
-                 e.preventDefault();
-                 e.stopPropagation();
-                 // Move to rate field
-                 const rateElement = document.querySelector(`[data-field="rate"][data-item-id="${item.id}"]`);
-                 if (rateElement) {
-                   (rateElement as HTMLElement).click();
-                 }
-               }
-             }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  // Move to rate field
+                  const rateElement = document.querySelector(`[data-field="rate"][data-item-id="${item.id}"]`);
+                  if (rateElement) {
+                    (rateElement as HTMLElement).click();
+                  }
+                }
+              }}
             >
               {Array.isArray(item.availableUnits) && item.availableUnits.length > 0 ? (
                 item.availableUnits.map(unit => (
+                  <option key={unit} value={unit}>{unit}</option>
+                ))
+              ) : settings.availableUnits && settings.availableUnits.length > 0 ? (
+                settings.availableUnits.map(unit => (
                   <option key={unit} value={unit}>{unit}</option>
                 ))
               ) : (
