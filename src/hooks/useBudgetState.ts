@@ -248,6 +248,8 @@ export const useBudgetStore = create<BudgetState>()(
 
               if (error) {
                 console.error('Error updating budget in Supabase:', error);
+              } else {
+                console.log('Budget updated successfully in Supabase for quote:', quoteId);
               }
             } catch (error) {
               console.error('Error syncing budget with Supabase:', error);

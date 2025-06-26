@@ -471,7 +471,7 @@ export function BudgetRow({
                 }
               }}
             >
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 flex-wrap">
                 <span className="text-[10px] text-gray-300 font-mono tracking-tighter">{itemNumber}</span>
                 {isNameEditing ? (
                   <div className="flex flex-row flex-nowrap items-center w-full min-w-0">
@@ -486,7 +486,7 @@ export function BudgetRow({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           setIsNameEditing(false);
-                          const nextElement = document.querySelector(`[data-field=\"quantity\"][data-item-id=\"${item.id}\"]`);
+                          const nextElement = document.querySelector(`[data-field="quantity"][data-item-id="${item.id}"]`);
                           if (nextElement) {
                             (nextElement as HTMLElement).focus();
                           }
@@ -707,7 +707,7 @@ export function BudgetRow({
             <span className="text-[11px] font-mono text-gray-700 select-none" title="Base dynamique : somme de tous les postes de la sélection (catégorie ou sous-catégorie)">
               {formatNumber(computePercentageBase(item.selectedCategories || [], categories, settings, convertAmount, selectedCurrency, showCharges, true).total)}
               <div key={debugKey} style={{ fontSize: 12, color: '#b91c1c', background: '#fef2f2', borderRadius: 3, padding: 4, marginTop: 4, maxWidth: 350, minHeight: 30 }}>
-                <b>Base dynamique :</b>
+                <b>Base dynamique :</b>
                 <div style={{ marginBottom: 4 }}>
                   <label style={{ fontSize: 11 }}>
                     <input type="checkbox" checked={showCharges} onChange={e => setShowCharges(e.target.checked)} style={{ marginRight: 4 }} />
@@ -738,7 +738,7 @@ export function BudgetRow({
                     ];
                   })()}
                 </ul>
-                <b>Total base : {formatNumber(computePercentageBase(item.selectedCategories || [], categories, settings, convertAmount, selectedCurrency, showCharges, true).total)}</b>
+                <b>Total base : {formatNumber(computePercentageBase(item.selectedCategories || [], categories, settings, convertAmount, selectedCurrency, showCharges, true).total)}</b>
               </div>
             </span>
           ) : (
