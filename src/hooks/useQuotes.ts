@@ -405,6 +405,7 @@ export const useQuoteStore = create<QuoteState>()(
       updateQuoteBudget: async (quoteId, budget) => {
         try {
           console.log('Updating budget for quote:', quoteId);
+          console.log('Budget data:', JSON.stringify(budget).substring(0, 200) + '...');
           
           // Extract comments from budget items for separate storage
           const comments: Record<string, string> = {};

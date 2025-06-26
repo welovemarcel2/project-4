@@ -24,11 +24,11 @@ interface BudgetState {
   getBudget: (quoteId: string) => BudgetCategory[];
   getWorkBudget: (quoteId: string) => BudgetCategory[];
   isWorkBudgetActive: (quoteId: string) => boolean;
-  updateBudget: (quoteId: string, newBudget: BudgetCategory[] | null | undefined, isWorkBudget?: boolean) => void;
-  addItem: (quoteId: string, categoryId: string | null, parentId: string | null, type: BudgetItemType, settings: QuoteSettings, isWorkBudget?: boolean) => void;
+  updateBudget: (quoteId: string, newBudget: BudgetCategory[] | null | undefined, isWorkBudget?: boolean) => Promise<void>;
+  addItem: (quoteId: string, categoryId: string | null, parentId: string | null, type: BudgetItemType, settings: QuoteSettings, isWorkBudget?: boolean) => Promise<void>;
   updateItem: (quoteId: string, categoryId: string, itemId: string, updates: Partial<BudgetLine>, saveToBackend?: boolean) => Promise<void>;
-  deleteItem: (quoteId: string, categoryId: string, itemId: string, isWorkBudget?: boolean) => void;
-  updateCategory: (quoteId: string, categoryId: string, updates: Partial<BudgetCategory>, isWorkBudget?: boolean) => void;
+  deleteItem: (quoteId: string, categoryId: string, itemId: string, isWorkBudget?: boolean) => Promise<void>;
+  updateCategory: (quoteId: string, categoryId: string, updates: Partial<BudgetCategory>, isWorkBudget?: boolean) => Promise<void>;
   initializeWorkBudget: (quoteId: string) => void;
   resetWorkBudget: (quoteId: string) => void;
   loadWorkBudget: (quoteId: string) => Promise<void>;
@@ -207,6 +207,8 @@ export const useBudgetStore = create<BudgetState>()(
 
               if (error) {
                 console.error('Error updating work budget in Supabase:', error);
+              } else {
+                console.log('Work budget updated successfully in Supabase for quote:', quoteId);
               }
             } catch (error) {
               console.error('Error syncing work budget with Supabase:', error);
@@ -233,6 +235,9 @@ export const useBudgetStore = create<BudgetState>()(
             });
           } else {
             try {
+              console.log('Saving budget to Supabase for quote:', quoteId);
+              console.log('Budget data:', JSON.stringify(validatedBudget).substring(0, 200) + '...');
+              
               // Use upsert for regular budget updates as well
               const { error } = await supabase
                 .from('quote_budgets')
@@ -258,7 +263,7 @@ export const useBudgetStore = create<BudgetState>()(
         }
       },
 
-      addItem: (quoteId, categoryId, parentId, type, settings, isWorkBudget = false) => {
+      addItem: async (quoteId, categoryId, parentId, type, settings, isWorkBudget = false) => {
         const state = get();
         const budgetData = state.budgets[quoteId] || {
           budget: [],
@@ -354,7 +359,8 @@ export const useBudgetStore = create<BudgetState>()(
           }
 
           // Save to Supabase immediately
-          get().updateBudget(quoteId, updatedBudget, isWorkBudget);
+          await get().updateBudget(quoteId, updatedBudget, isWorkBudget);
+          console.log(`Item added and saved to Supabase for quote: ${quoteId}, type: ${type}`);
         } catch (error) {
           console.error('Error adding item:', error);
           throw error;
@@ -446,6 +452,7 @@ export const useBudgetStore = create<BudgetState>()(
           // Save to Supabase if requested
           if (saveToBackend) {
             await get().updateBudget(quoteId, updatedBudget, isWorkBudget);
+            console.log(`Item updated and saved to Supabase for quote: ${quoteId}, item: ${itemId}`);
           }
         } catch (error) {
           console.error('Error updating item:', error);
@@ -453,7 +460,7 @@ export const useBudgetStore = create<BudgetState>()(
         }
       },
 
-      deleteItem: (quoteId, categoryId, itemId, isWorkBudget = false) => {
+      deleteItem: async (quoteId, categoryId, itemId, isWorkBudget = false) => {
         const state = get();
         const budgetData = state.budgets[quoteId] || {
           budget: [],
@@ -517,10 +524,11 @@ export const useBudgetStore = create<BudgetState>()(
         }
 
         // Save to Supabase immediately
-        get().updateBudget(quoteId, updatedBudget, isWorkBudget);
+        await get().updateBudget(quoteId, updatedBudget, isWorkBudget);
+        console.log(`Item deleted and saved to Supabase for quote: ${quoteId}, item: ${itemId}`);
       },
 
-      updateCategory: (quoteId, categoryId, updates, isWorkBudget = false) => {
+      updateCategory: async (quoteId, categoryId, updates, isWorkBudget = false) => {
         const state = get();
         const budgetData = state.budgets[quoteId] || {
           budget: [],
@@ -563,7 +571,8 @@ export const useBudgetStore = create<BudgetState>()(
         }
 
         // Save to Supabase immediately
-        get().updateBudget(quoteId, updatedBudget, isWorkBudget);
+        await get().updateBudget(quoteId, updatedBudget, isWorkBudget);
+        console.log(`Category updated and saved to Supabase for quote: ${quoteId}, category: ${categoryId}`);
       },
 
       initializeWorkBudget: (quoteId) => {
